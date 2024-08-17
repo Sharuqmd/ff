@@ -1,0 +1,252 @@
+These alerts are generated off of metrics from kube-state-metrics which gives us insight into various state and statuses of most Resources in the cluster. Kube-state-metrics are deployed by default with the prometheus operator. The alerts defined here are applicable globally to all Resources that exist in the cluster. They serve as a reassurance to indicate that there are no anomalies in the cluster. It is expected that most issues will be caught before these alerts trigger either by conscientious deployment monitoring or application alerts.
+
+Deployment not available
+Indicates that the minimum requirements defined in the rolling update strategy (ex. helm-percolator) is not met.
+
+Alerting rule prometheus_k8s_cluster_state_deployment_not_available
+Pod ready status graph
+Deployments
+Container Status Reasons
+Remediation:
+
+Use Kubernetes UI or kubectl -n <namespace> describe deployment <deployment> to look at the reason why it is not available
+Check kubernetes events for errors kubectl get events -A
+Deployment Progressing Status False
+Indicates that the Progressing condition of a Deployment is false. This usually means a deployment has failed.
+
+Alerting rule prometheus_k8s_cluster_state_deployment_progressing_status_false
+Pod ready status graph
+Deployments
+Container Status Reasons
+Remediation:
+
+Use Kubernetes UI or kubectl -n <namespace> describe deployment <deployment> to look at the reason why the condition for Progressing is false.
+Check kubernetes events for errors kubectl get events -A
+Replicaset Replicas Ready Mismatch
+Indicates that the number of replicas in the deployment spec does not align with the current deployed state.
+
+Alerting rule prometheus_k8s_cluster_state_replicaset_replicas_ready_mismatch
+Pod ready status graph
+Container Status Reasons
+Remediation:
+
+Inspect the ReplicaSet via UI or kubectl -n <namespace> rs <replicaset>
+Inspect the pods associated with the replica set (click the link in the UI or  kubectl -n <namespace> get pods -l <copy paste "Selector" field from the ReplicaSet description>)
+Check kubernetes events for errors kubectl get events -A
+Rollout paused for too long
+A rollout has been in the paused state for an extended period of time. Typically this means that a canary deployment was deployed without auto-promote and the rollout is waiting for someone to promote it. It could also signify something is wrong with the rollout if auto-promote was enabled for the deploy.
+
+Alerting rule prometheus_k8s_cluster_state_rollout_paused_time_high
+Rollout Insights
+Remediation:
+
+Check in with the engineer responsible for the deployment to ensure they are aware that this had triggered
+Rollout status can be checked via the argo-rollouts plugin kubectl argo rollouts get rollouts <rollout name> -n <namespace> -w
+Rollout Failure
+This indicates that a rollout has failed to go through its configured steps and implys an unsuccessful deployment attempt.
+
+Alerting rule prometheus_k8s_cluster_state_rollout_failure
+Rollout Insights
+Remediation:
+
+Check in with the engineer responsible for the deployment to ensure they are aware that this had triggered
+Ensure that the rollback was successful and that all traffic is pointing at the stable service. This analysis can be done in the Rollout Insights section of the grafana dash.
+Ensure that metrics go back to normal after the rollback.
+Rollout status can be checked via the argo-rollouts plugin kubectl argo rollouts get rollouts <rollout name> -n <namespace> -w. The canary instances should be marked as scaled down.
+Container CPU Usage High
+Indicates that a container is reaching the CPU limit configured for it. The configuration should be under resources field of the k8s manifest.
+
+Alerting rule prometheus_k8s_cluster_state_container_cpu_usage_high
+CPU Usage
+Remediation:
+
+Determine if autoscaling is enabled for the pod of the container and whether this is an autoscaling issue
+Check to see if there was degradation introduced in the CPU Usage chart
+Consider adjusting the CPU limit
+Container Memory Usage High
+Indicates that a container is reaching the memory limit configured for it. The configuration should be under resources field of the k8s manifest.
+
+Alerting rule prometheus_k8s_cluster_state_container_mem_usage_high
+Memory Usage
+Remediation:
+
+Determine if autoscaling is enabled for the pod of the container and whether this is an autoscaling issue
+Check to see if there was degradation introduced in the Memory Usage chart
+Consider adjusting the CPU limit
+Pod Restarted
+Indicates that a pod or a container restarted more than once in a certain time. If the pod keeps restarting it will end up in CrashLoopBackOff and alert with Pod Cannot Start.
+
+Alerting rule prometheus_k8s_cluster_state_pod_restarts_high
+Erroneous Pods
+Remediation:
+
+Run kubectl get pods to see the status of the pods.
+describe the pod and focus on these areas:
+Last State explains the prior pod termination reason. The termination reason may help you understand the restart.
+Events holds recent pod events. If there's no events, then either no events happened or events cleared before you issued the command. The default event retention is 1 hour (see --event-ttl.
+Review the prior pod's logs via kubectl logs $pod -n $namespace --previous.
+If the prior pod's logs do not exist, then check kibana Dashboard for pod logs.
+Pod Initialization Restarted
+Indicates that a pod or a container restarted at initiation. If an init container (ex. Percolator Router's) fails to start due to the runtime or exits with failure it is going to restart.
+
+Alerting rule prometheus_k8s_cluster_state_pod_initialization_restarted
+Erroneous Pods
+Remediation: Follow remediation steps for Pod Restarted.
+
+Pod Cannot Start
+Indicates why the pod has issue to start. kube_pod_container_status_waiting_reason captures the reasons for a pod in Waiting status. List of reasons other than ContainerCreating which would just mean that the pod is starting up are: CrashLoopBackOff, ErrImagePull, ImagePullBackOff, CreateContainerConfigError, InvalidImageName and CreateContainerError. Some of these issues such as ErrImagePull, ImagePullBackOff, CreateContainerConfigError or InvalidImageName are more straightforward to debug. However CrashLoopBackOff troubleshooting might be more complex. CrashLoopBackOff means the pod is starting, crashing, starting again, and then crashing again.
+
+Alerting rule prometheus_k8s_cluster_state_pod_cannot_start
+Erroneous Pods
+Remediation:
+
+Run kubectl get pods to see the status of the pods.
+Describe the pod in question to get more information. Look into events section and read them top to bottom to get idea on what Kubernetes was doing. kubectl describe pod pod_with_issue -n name_space_of_the_pod
+Get the pod logs kubectl logs pod_with_issue -n namespace_of_the_pod. If the log is gone go to next step.
+Check kibana Dashboard to look for the cause of waiting.
+Pod Stuck In Creating
+Indicates the pod is stuck in creating phase.
+
+Alerting rule prometheus_k8s_cluster_state_pod_stuck_in_creating
+Erroneous Pods
+Remediation:
+
+Run kubectl get pods to see the status of the pods.
+Describe the pod in question to get more information. Look into events section and read them top to bottom to get idea on what Kubernetes was doing. kubectl describe pod pod_with_issue -n name_space_of_the_pod
+Get the pod logs kubectl logs pod_with_issue -n namespace_of_the_pod. If the log is gone go to next step.
+Check kibana Dashboard to look for the cause of waiting.
+Pod Terminated Unexpectedly
+Indicates why the pod has terminated with issue. kube_pod_container_status_terminated_reason captures the reasons for a terminated pod. Unexpected reasons include ContainerCannotRun and DeadlineExceeded.
+
+Some termination reasons are captured by more targeted rules:
+
+Evicted via Pod Evicted
+OOMKilled via Pod Terminated OOM
+Some reasons are not monitored because we've historically found them to generate alerts without an identifiable root cause issue:
+
+Error
+
+Alerting rule prometheus_k8s_cluster_state_pod_terminated_unexpectedly
+
+Erroneous Pods
+
+Pod termination errors
+
+Remediation:
+
+Run kubectl get pods to see the status of the pods.
+Describe the pod in question to get more information. Look into events section and read them top to bottom to get idea on what Kubernetes was doing. kubectl describe pod pod_with_issue -n name_space_of_the_pod
+Get the pod logs kubectl logs pod_with_issue -n namespace_of_the_pod. If the log is gone go to next step.
+Check kibana Dashboard to look for the cause of termination.
+Pod Terminated OOM
+Indicates that a pod has terminated with OOM. OOMKilled would happen when a pod gets killed due to exceeding its configured memory limit or Kubernetes attempting to prevent node memory exhaustion.
+
+Alerting rule prometheus_k8s_cluster_state_pod_terminated_oom
+Erroneous Pods
+Remediation:
+
+Run kubectl get pods to see the status of the pods.
+Describe the pod in question to get more information. Look into events section and read them top to bottom to get idea on what Kubernetes was doing. kubectl describe pod pod_with_issue -n name_space_of_the_pod
+Get the pod logs kubectl logs pod_with_issue -n namespace_of_the_pod. If the log is gone go to next step.
+Check kibana Dashboard to look for the cause of termination.
+If OOMKilled is happening on percolator pod consider adjusting Memory Request. If it is happening on any other pod also adjusting memory request or memory limit could be considered.
+Pod Evicted
+Indicates that a pod has evicted. Evicted could happen when a node in a Kubernetes cluster is running out of memory or disk to signal it is under pressure. These pods are going to be scheduled in a different node if they are managed by a ReplicaSet to free resources and relieve the pressure.
+
+Alerting rule prometheus_k8s_cluster_state_pod_evicted
+Erroneous Pods
+Remediation:
+
+Run kubectl get pods to see the status of the pods.
+Describe the pod in question to get more information. Look into events section and read them top to bottom to get idea on what Kubernetes was doing. kubectl describe pod pod_with_issue -n name_space_of_the_pod
+Get the pod logs kubectl logs pod_with_issue -n namespace_of_the_pod. If the log is gone go to next step.
+Check kibana Dashboard to look for the cause of termination.
+If Evicted is happening on percolator pod consider adjusting Memory Request, CPU Request or CPU Limit. If it is happening on any other pod also adjusting resource request or resource limit could be considered.
+Cluster Autoscaler Fails In Scaling Up
+Indicates an unsuccessful scale-up operation performed by CA. This includes both getting error from cloud provider and new nodes failing to boot up and register within timeout.
+
+Alerting rule prometheus_cluster_autoscaler_fails_in_scaling_up
+Cluster AutoScaler Failed Scale Up
+Remediation:
+
+The metric cluster_autoscaler_failed_scale_ups_total contains a reason tag.
+Check the failed activities from ASG in the appropriate slack channel. The channel is configured via asg_notification_slack_channel). Most likely see the appropriate tfpm, ex. tfpm-percolator-eks.
+To check the ASG full activities login to AWS console and follow the steps in here.
+Get the Cluster Autoscaler logs kubectl logs deployment.apps/cluster-autoscaler -n kube-system.
+Alternative to check logs: kibana Dashboard.
+Additional information on how to debug what is going on with CA can be found in here.
+Cluster Autoscaler Is Failing
+Indicates main CA loop encounters an error. Growing errors_total count signifies an internal error in CA or a problem with underlying infrastructure preventing normal CA operation. Some example errors and possible error types are listed in here under errors_total.
+
+Alerting rule prometheus_cluster_autoscaler_is_failing
+Cluster AutoScaler Errors
+Remediation:
+
+Get the Cluster Autoscaler logs kubectl logs deployment.apps/cluster-autoscaler -n kube-system.
+Alternative to check logs: kibana Dashboard.
+Additional information on how to debug what is going on with CA can be found in here.
+Cluster Autoscaler Too Many Pending Pods
+Indicates there are too many unscheduled ("Pending") pods in the cluster. For some reason, nodes cannot be allocated for the unscheduled pods.
+
+Alerting rule prometheus_cluster_autoscaler_too_many_pending_pods
+Cluster AutoScaler Pending Pods
+Remediation:
+
+If AWS:
+Check the failed activities from ASG in the appropriate slack channel. The channel is configured via asg_notification_slack_channel). Most likely see the appropriate tfpm, ex. tfpm-percolator-eks.
+To check the ASG full activities login to AWS console and follow the steps in here.
+Get the Cluster Autoscaler logs kubectl logs deployment.apps/cluster-autoscaler -n kube-system.
+Alternative to check logs: kibana Dashboard.
+Additional information on how to debug what is going on with CA can be found in here.
+If the situation is dire, increase ASG desired capacity via AWS Console. Goal is to expedite getting needed capacity. It's not guaranteed to help. Excess capacity will be shutdown by cluster autoscaler.
+Page an Ops team member. Engineering cannot make production AWS Console changes.
+Navigate to EC2 > Auto Scaling groups. Click the affected ASG name to open the detail view.
+Select the Details tab and locate the Group details section. Click Edit.
+Enter a new Desired capacity. Click Update. Monitor ASG activity.
+If on-prem - We haven't encountered the situation yet. If you don't feel comfortable downtiming until the next business day, then escalate to Dave, Rich, or Michael. We'll likely also need to pair with Ops and/or Infra.
+Cluster Autoscaler unsafe to auto-scale
+Indicates CA judges the environment too unstable to continue auto-scaling (source: https://github.com/kubernetes/autoscaler/blob/HEAD/cluster-autoscaler/proposals/metrics.md#cluster-state). Source code review shows IsClusterHealthy() uses these configuration knobs as input: max-total-unready-percentage and ok-total-unready-count.
+
+Alerting rule prometheus_cluster_autoscaler_unsafe_to_autoscale
+Grafana
+Remediation:
+
+Mostly TBD because we've not encountered the circumstance. Treat these steps as a best guess for guiding response.
+Triage impacted AZs and regions.
+If you think an AZ is impaired and immediate action is required, then remove the degraded AZ by following instructions in https://github.rp-core.com/magnite/hephaestus/search?q=degraded+AZ.
+Otherwise if you feel immediate action is required, attempt increasing configuration knobs to allow CA auto-scaling to continue: max-total-unready-percentage and ok-total-unready-count.
+After the issue resolves, gauge if modifying the input configuration knobs is a sensible move to avoid an issue recurrence. Since we've not yet modified these knobs, we don't yet know the repercussions of values that are too high.
+Pod scheduling latency high
+Highlights that a service impairment may exist because expected capacity is unavailable within an expected timeframe. Repeated occurrences imply that the application owner should consider over-provisioning or otherwise make changes to tolerate a higher lead time for more capacity.
+
+Alerting rule prometheus_pod_scheduling_latency_high
+Grafana
+Remediation:
+
+Triage impacted regions and correlate against these sources:
+Review associated ASG activity logs for clues about capacity shortfalls.
+Look for obvious cloud provider issues via https://status.aws.amazon.com/.
+Study the associated Grafana graph to identify trends.
+If you deem the issue causes severe service impairment, then:
+Attempt to augment capacity by manually increasing instance count. See Cluster Autoscaler Too Many Pending Pods.
+If no other remediation efforts work, then escalate the alert.
+Otherwise after the issue resolves, inspect latency trends to determine which (if any) capacity or resiliency configuration changes make sense.
+Pod Topology Spread Skew High
+Pod topology spread attempts to place pods evenly per availability zone (AZ), but an imbalance is still possible. Imbalances change the revenue at risk when losing an AZ. Alerts imply the risk level exceeds the comfort level.
+
+Alerting rule prometheus_pod_topology_spread_skew_high
+Grafana
+Remediation:
+
+Review https://status.aws.amazon.com/ for signs of AWS degradation.
+Review ASG activity history for clues about AZ status and capacity. Go to https://us-west-1.console.aws.amazon.com/ec2autoscaling/home?region=us-west-1#/details/, switch to desired region, click the affected ASG(s), and then click Activity.
+If your review suggests there's an AWS issue, open an AWS support ticket to ask if there is a degraded AZ.
+If there is a degraded AZ, remove the degraded AZ. In the corresponding TFP, configure param public_subnets_override with healthy AZs.
+https://github.rp-core.com/RubiconProject/tfp-percolator-eks/commit/9f691aa6cf7c5ca599c941681436951cfcea331a shows an example override.
+You can login to AWS portal or pull AZ information via AWS cli. By using AWS portal, you can follow:
+Login to AWS console
+Change your region
+Search for VPC
+Go to Subnets and review Subnet ID and Availability Zone columns
+FooterRubicon Project
+Rubicon Project
